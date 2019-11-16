@@ -9,7 +9,7 @@ def Create_Integral_Image(image):
             output[x][y] = image[x][y]
             output[x][y] += output[x-1][y] if x - 1 >= 0
             output[x][y] += output[x][y-1] if y - 1 >= 0
-            output[x][y] -= output[x-1][y-1] if x - 1 >= 0 and y - 1 >= 0e
+            output[x][y] -= output[x-1][y-1] if x - 1 >= 0 and y - 1 >= 0
     output = np.hstack((np.zeros((output.shape[0], 1)), output))
     output = np.vstack((np.zeros((1, output.shape[1])), output))
     return output
