@@ -12,7 +12,7 @@ def ReadImage(filepath, label):
 def GetImages(path, label):
     images = []
     for file_name in os.listdir(path):
-        if file_name.endswith('png'):
+        if file_name.endswith('png') or file_name.endswith('pgm'):
             images.append(ReadImage(os.path.join(path, file_name), label))
     return images
 

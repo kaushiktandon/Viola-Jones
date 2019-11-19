@@ -1,7 +1,7 @@
 # Viola-Jones
 Parallel Implementation of the Viola-Jones algorithm for our EE 451 Course Project
 
-Training Data Set: http://cbcl.mit.edu/software-datasets/FaceData2.html
+Data Set: http://cbcl.mit.edu/software-datasets/FaceData2.html - Provides set of training and set of test files. Download from www.ai.mit.edu/courses/6.899/lectures/faces.tar.gz
 
 ## Run OpenCV Benchmark
 Assuming you are in the `Viola-Jones` directory:
