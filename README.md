@@ -9,12 +9,10 @@ Assuming you are in the `Viola-Jones` directory:
 ```
 sh ./make_neg_info_file.sh
 ```
-* Create `.info` file from positive samples
+* Create `.info` file from positive samples (can do with annotation tool: https://docs.opencv.org/master/dc/d88/tutorial_traincascade.html)
 ```
 sh ./make_pos_info_file.sh
 ```
-  * How to use annotation tool: https://docs.opencv.org/master/dc/d88/tutorial_traincascade.html 
-
 * Create `.vec` file from positive samples
 ```
 opencv_createsamples -info face.info -num 2429 -w 24 -h 24 -vec face.vec
