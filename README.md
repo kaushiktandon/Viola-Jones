@@ -24,5 +24,5 @@ opencv_createsamples -info face.info -num 2429 -w 24 -h 24 -vec face.vec
 ```
 * Train OpenCV Model
 ```
-opencv_traincascade -data train/classifier -vec face.vec -bg nonface.txt -numPos 10 -numNeg 10 -numStages 2 -w 24 -h 24 -minhitrate 0.5 -featureType HAAR
+opencv_traincascade -data train/classifier -vec face.vec -bg nonface.txt -numPos 2000 -numNeg 4548 -numStages 20 -numThreads 1 -w 24 -h 24 -minhitrate 0.9 -featureType HAAR
 ```
