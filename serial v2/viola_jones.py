@@ -6,6 +6,7 @@ import numpy as np
 import math
 import pickle
 from sklearn.feature_selection import SelectPercentile, f_classif
+import time
 
 class ViolaJones:
     def __init__(self, T = 10):
@@ -28,17 +29,26 @@ class ViolaJones:
         weights = np.zeros(len(training))
         training_data = []
         print("Computing integral images")
+
+        start_time = time.time()
         for x in range(len(training)):
             training_data.append((integral_image(training[x][0]), training[x][1]))
             if training[x][1] == 1:
                 weights[x] = 1.0 / (2 * pos_num)
             else:
                 weights[x] = 1.0 / (2 * neg_num)
+        print (str(time.time() - start_time) + " seconds")
 
         print("Building features")
+        start_time = time.time()
         features = self.build_features(training_data[0][0].shape)
+        print (str(time.time() - start_time) + " seconds")
+
+        start_time = time.time()
         print("Applying features to training examples")
         X, y = self.apply_features(features, training_data)
+        print (str(time.time() - start_time) + " seconds")
+
         print("Selecting best features")
         indices = SelectPercentile(f_classif, percentile=10).fit(X.T, y).get_support(indices=True)
         X = X[indices]
@@ -170,6 +180,25 @@ class ViolaJones:
             if error < best_error:
                 best_clf, best_error, best_accuracy = clf, error, accuracy
         return best_clf, best_error, best_accuracy
+
+    def feature_ii(self, ii, pos_regions, neg_regions):
+        '''
+        Helper function for applfying features
+        Args:
+            ii, pos_regions, neg_regions
+        Returns:
+            positive weight - negative weight
+        '''
+
+        pos_sum = 0
+        for pos in pos_regions:
+            pos_sum += pos.compute_feature(ii)
+
+        neg_sum = 0
+        for neg in neg_regions:
+            neg_sum += neg.compute_feature(ii)
+
+        return pos_sum - neg_sum
     
     def apply_features(self, features, training_data):
         """
@@ -185,8 +214,10 @@ class ViolaJones:
         y = np.array(list(map(lambda data: data[1], training_data)))
         i = 0
         for positive_regions, negative_regions in features:
-            feature = lambda ii: sum([pos.compute_feature(ii) for pos in positive_regions]) - sum([neg.compute_feature(ii) for neg in negative_regions])
-            X[i] = list(map(lambda data: feature(data[0]), training_data))
+            temp_list = list()
+            for m in range(len(training_data)):
+                temp_list.append(self.feature_ii(training_data[m][0], positive_regions, negative_regions))
+            X[i] = temp_list
             i += 1
         return X, y
 
