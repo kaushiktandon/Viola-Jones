@@ -60,12 +60,17 @@ class ViolaJones:
             weak_classifiers = self.train_weak(X, y, features, weights)
             clf, error, accuracy = self.select_best(weak_classifiers, weights, training_data)
             beta = error / (1.0 - error)
-            for i in range(len(accuracy)):
-                weights[i] = weights[i] * (beta ** (1 - accuracy[i]))
+            weights = update_weights(weights, accuracy, beta)
             alpha = math.log(1.0/beta)
             self.alphas.append(alpha)
             self.clfs.append(clf)
             print("Chose classifier: %s with accuracy: %f and alpha: %f" % (str(clf), len(accuracy) - sum(accuracy), alpha))
+
+    def update_weights(self, weights, accuracy, beta):
+        # TODO: Parallelize
+        for i in range(len(accuracy)):
+            weights[i] = weights[i] * (beta ** (1 - accuracy[i]))
+        return weights
 
     def train_weak(self, X, y, features, weights):
         """
@@ -87,6 +92,9 @@ class ViolaJones:
 
         classifiers = []
         total_features = X.shape[0]
+
+        # TODO: Parallelize
+        # Each iteration of this loop is supposed to train a weak classifier. len(X) is ~5000, so maybe have 1 thread be responsible for 100 classifiers
         for index, feature in enumerate(X):
             if len(classifiers) % 1000 == 0 and len(classifiers) != 0:
                 print("Trained %d classifiers out of %d" % (len(classifiers), total_features))
@@ -96,6 +104,7 @@ class ViolaJones:
             pos_seen, neg_seen = 0, 0
             pos_weights, neg_weights = 0, 0
             min_error, best_feature, best_threshold, best_polarity = float('inf'), None, None, None
+            # Can't really parallelize this because neg_weights/pos_weights in the ith iteration need information from iterations 0 to i - 1
             for w, f, label in applied_feature:
                 error = min(neg_weights + total_pos - pos_weights, pos_weights + total_neg - neg_weights)
                 if error < min_error:
@@ -170,6 +179,8 @@ class ViolaJones:
             A tuple containing the best classifier, its error, and an array of its accuracy
         """
         best_clf, best_error, best_accuracy = None, float('inf'), None
+        # TODO: Parallelize
+        # We have ~5000 classifiers. Have threads find the best for their subset and then find the best overall
         for clf in classifiers:
             error, accuracy = 0, []
             for data, w in zip(training_data, weights):
@@ -189,7 +200,6 @@ class ViolaJones:
         Returns:
             positive weight - negative weight
         '''
-
         pos_sum = 0
         for pos in pos_regions:
             pos_sum += pos.compute_feature(ii)
@@ -213,6 +223,7 @@ class ViolaJones:
         X = np.zeros((len(features), len(training_data)))
         y = np.array(list(map(lambda data: data[1], training_data)))
         i = 0
+        #TODO: Parallelize
         for positive_regions, negative_regions in features:
             temp_list = list()
             for m in range(len(training_data)):
@@ -267,6 +278,17 @@ class WeakClassifier:
         self.negative_regions = negative_regions
         self.threshold = threshold
         self.polarity = polarity
+
+    def feature_ii(self, ii):
+        pos_sum = 0
+        for pos in self.positive_regions:
+            pos_sum += pos.compute_feature(ii)
+
+        neg_sum = 0
+        for neg in self.negative_regions:
+            neg_sum += neg.compute_feature(ii)
+
+        return pos_sum - neg_sum
     
     def classify(self, x):
         """
@@ -277,8 +299,10 @@ class WeakClassifier:
             1 if polarity * feature(x) < polarity * threshold
             0 otherwise
         """
-        feature = lambda ii: sum([pos.compute_feature(ii) for pos in self.positive_regions]) - sum([neg.compute_feature(ii) for neg in self.negative_regions])
-        return 1 if self.polarity * feature(x) < self.polarity * self.threshold else 0
+        if self.polarity * self.feature_ii(x) < self.polarity * self.threshold:
+            return 1
+        else:
+            return 0
     
     def __str__(self):
         return "Weak Clf (threshold=%d, polarity=%d, %s, %s" % (self.threshold, self.polarity, str(self.positive_regions), str(self.negative_regions))
@@ -317,6 +341,7 @@ def integral_image(image):
       Args:
         image : an numpy array with shape (m, n)
     """
+    # TODO: Can this be parallelized?
     ii = np.zeros(image.shape)
     s = np.zeros(image.shape)
     for y in range(len(image)):
