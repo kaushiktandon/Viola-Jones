@@ -7,6 +7,7 @@ import math
 import pickle
 from sklearn.feature_selection import SelectPercentile, f_classif
 import time
+import threading
 
 class ViolaJones:
     def __init__(self, T = 10):
@@ -17,6 +18,12 @@ class ViolaJones:
         self.T = T
         self.alphas = []
         self.clfs = []
+
+    def update_weights(self, weights, accuracy, beta):
+        # TODO: Parallelize
+        for i in range(len(accuracy)):
+            weights[i] = weights[i] * (beta ** (1 - accuracy[i]))
+        return weights
 
     def train(self, training, pos_num, neg_num):
         """
@@ -60,17 +67,11 @@ class ViolaJones:
             weak_classifiers = self.train_weak(X, y, features, weights)
             clf, error, accuracy = self.select_best(weak_classifiers, weights, training_data)
             beta = error / (1.0 - error)
-            weights = update_weights(weights, accuracy, beta)
+            weights = self.update_weights(weights, accuracy, beta)
             alpha = math.log(1.0/beta)
             self.alphas.append(alpha)
             self.clfs.append(clf)
             print("Chose classifier: %s with accuracy: %f and alpha: %f" % (str(clf), len(accuracy) - sum(accuracy), alpha))
-
-    def update_weights(self, weights, accuracy, beta):
-        # TODO: Parallelize
-        for i in range(len(accuracy)):
-            weights[i] = weights[i] * (beta ** (1 - accuracy[i]))
-        return weights
 
     def train_weak(self, X, y, features, weights):
         """
@@ -209,7 +210,23 @@ class ViolaJones:
             neg_sum += neg.compute_feature(ii)
 
         return pos_sum - neg_sum
-    
+
+    def threaded_apply_features(self, my_features, training_data, X, X_Lock, thread_id):
+        my_thread_output = list()
+        for positive_regions, negative_regions in my_features:
+            temp_list = list()
+            # Could parallelize this too
+            for m in range(len(training_data)):
+                temp_list.append(self.feature_ii(training_data[m][0], positive_regions, negative_regions))
+            my_thread_output.append(temp_list)
+
+        a = 0
+        with X_Lock:
+            for temp_list in my_thread_output:
+                X[thread_id * 1000 + a] = temp_list
+                a += 1
+
+        # Pass output back when thread ends, or update X here
     def apply_features(self, features, training_data):
         """
         Maps features onto the training dataset
@@ -223,13 +240,21 @@ class ViolaJones:
         X = np.zeros((len(features), len(training_data)))
         y = np.array(list(map(lambda data: data[1], training_data)))
         i = 0
-        #TODO: Parallelize
-        for positive_regions, negative_regions in features:
-            temp_list = list()
-            for m in range(len(training_data)):
-                temp_list.append(self.feature_ii(training_data[m][0], positive_regions, negative_regions))
-            X[i] = temp_list
-            i += 1
+        # With len(features) = 51705, we want 52 threads, 51 responsible for 1000 elements and 1 responsible for ~700 elements
+        num_threads = int(len(features) / 1000) + 1
+        threads = []
+        X_Lock = threading.Lock()
+        for thread_id in range(num_threads):
+            end = min((thread_id + 1) * 1000, len(features))
+            my_features = features[thread_id * 1000 : end]
+
+            my_thread = threading.Thread(target=self.threaded_apply_features, args=(my_features, training_data, X, X_Lock, thread_id))
+            threads.append(my_thread)
+            my_thread.start()
+
+        for thread in threads:
+            thread.join()
+
         return X, y
 
     def classify(self, image):
