@@ -9,6 +9,12 @@ python3 face_detection.py
 ```
 
 ## Run OpenCV Benchmark
+To install OpenCV for python3:
+```
+pip3 install opencv-python
+pip3 install opencv-contrib-python
+```
+
 Assuming you are in the `Viola-Jones` directory:
 * Create `.txt` file from negative samples
 ```
