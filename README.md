@@ -8,21 +8,27 @@ Serial v2 modified from https://github.com/aparande/FaceDetection
 python3 face_detection.py
 ```
 
-## Run OpenCV Benchmark
+## OpenCV Benchmark
+### Install
 To install OpenCV for python3:
 ```
 pip3 install opencv-python
 pip3 install opencv-contrib-python
 ```
+    * If OpenCV not detected after above steps:
+```
+sudo apt install libopencv-dev
+```
 
-Assuming you are in the `Viola-Jones` directory:
+### Run
+Assuming you are in the `Viola-Jones/` directory:
 * Create `.txt` file from negative samples
 ```
-sh ./make_neg_info_file.sh
+bash ./make_neg_info_file.sh
 ```
 * Create `.info` file from positive samples (can do with annotation tool: https://docs.opencv.org/master/dc/d88/tutorial_traincascade.html)
 ```
-sh ./make_pos_info_file.sh
+bash ./make_pos_info_file.sh
 ```
 * Create `.vec` file from positive samples
 ```
@@ -30,5 +36,5 @@ opencv_createsamples -info face.info -num 2429 -w 24 -h 24 -vec face.vec
 ```
 * Train OpenCV Model
 ```
-opencv_traincascade -data train/classifier -vec face.vec -bg nonface.txt -numPos 2000 -numNeg 4548 -numStages 20 -numThreads 1 -w 24 -h 24 -minhitrate 0.9 -featureType HAAR
+opencv_traincascade -data train/classifier -vec face.vec -bg nonface.txt -numPos 2000 -numNeg 4548 -numStages 20 -numThreads 1 -w 24 -h 24 -minHitRate 0.9 -maxFalseAlarmRate 0.5 -featureType HAAR
 ```
