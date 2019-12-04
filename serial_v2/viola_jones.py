@@ -60,7 +60,7 @@ class ViolaJones:
             weak_classifiers = self.train_weak(X, y, features, weights)
             clf, error, accuracy = self.select_best(weak_classifiers, weights, training_data)
             beta = error / (1.0 - error)
-            weights = update_weights(weights, accuracy, beta)
+            weights = self.update_weights(weights, accuracy, beta)
             alpha = math.log(1.0/beta)
             self.alphas.append(alpha)
             self.clfs.append(clf)
