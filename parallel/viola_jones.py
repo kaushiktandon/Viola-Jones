@@ -199,6 +199,20 @@ class ViolaJones:
                     i += 1
         return np.array(features)
 
+    def threaded_select_best(self, classifiers, training_data, weights, best_data, thread_id):
+        best_clf, best_error, best_accuracy = None, float('inf'), None        
+        for clf in classifiers:
+            error, accuracy = 0, []
+            for data, w in zip(training_data, weights):
+                correctness = abs(clf.classify(data[0]) - data[1])
+                accuracy.append(correctness)
+                error += w * correctness
+            error = error / len(training_data)
+            if error < best_error:
+                best_clf, best_error, best_accuracy = clf, error, accuracy
+
+        best_data[thread_id] = (best_clf, best_error, best_accuracy)
+
     def select_best(self, classifiers, weights, training_data):
         """
         Selects the best weak classifier for the given weights
@@ -209,19 +223,29 @@ class ViolaJones:
           Returns:
             A tuple containing the best classifier, its error, and an array of its accuracy
         """
-        best_clf, best_error, best_accuracy = None, float('inf'), None
-        # TODO: Parallelize
         # We have ~5000 classifiers. Have threads find the best for their subset and then find the best overall
-        for clf in classifiers:
-            error, accuracy = 0, []
-            for data, w in zip(training_data, weights):
-                correctness = abs(clf.classify(data[0]) - data[1])
-                accuracy.append(correctness)
-                error += w * correctness
-            error = error / len(training_data)
-            if error < best_error:
-                best_clf, best_error, best_accuracy = clf, error, accuracy
-        return best_clf, best_error, best_accuracy
+        num_threads = int(len(classifiers) / 100) + 1
+        threads = []
+        best_data = [None] * num_threads
+        for thread_id in range(num_threads):
+            end = min((thread_id + 1) * 100, len(classifiers))
+            my_classifiers = classifiers[thread_id * 100 : end]
+
+            my_thread = threading.Thread(target=self.threaded_select_best, args= (my_classifiers, training_data, weights, best_data, thread_id))
+            my_thread.start()
+            threads.append(my_thread)
+
+        for thread in threads:
+            thread.join()
+
+        overall_best_clf, overall_best_error, overall_best_accuracy = None, float('inf'), None
+        for data in best_data:
+            if data[1] < overall_best_error:
+                overall_best_clf = data[0]
+                overall_best_error = data[1]
+                overall_best_accuracy = data[2]
+
+        return overall_best_clf, overall_best_error, overall_best_accuracy
 
     def feature_ii_pos(self, training_data, pos_regions, pos_scores):
         for m in range(len(training_data)):
@@ -443,7 +467,6 @@ def integral_image(image):
       Args:
         image : an numpy array with shape (m, n)
     """
-    # TODO: Can this be parallelized?
     ii = np.zeros(image.shape)
     s = np.zeros(image.shape)
     for y in range(len(image)):

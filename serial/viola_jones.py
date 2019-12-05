@@ -107,8 +107,6 @@ class ViolaJones:
         classifiers = []
         total_features = X.shape[0]
 
-        # TODO: Parallelize
-        # Each iteration of this loop is supposed to train a weak classifier. len(X) is ~5000, so maybe have 1 thread be responsible for 100 classifiers
         for index, feature in enumerate(X):
             if len(classifiers) % 1000 == 0 and len(classifiers) != 0:
                 print("Trained %d classifiers out of %d" % (len(classifiers), total_features))
@@ -193,8 +191,6 @@ class ViolaJones:
             A tuple containing the best classifier, its error, and an array of its accuracy
         """
         best_clf, best_error, best_accuracy = None, float('inf'), None
-        # TODO: Parallelize
-        # We have ~5000 classifiers. Have threads find the best for their subset and then find the best overall
         for clf in classifiers:
             error, accuracy = 0, []
             for data, w in zip(training_data, weights):
@@ -237,7 +233,6 @@ class ViolaJones:
         X = np.zeros((len(features), len(training_data)))
         y = np.array(list(map(lambda data: data[1], training_data)))
         i = 0
-        #TODO: Parallelize
         for positive_regions, negative_regions in features:
             temp_list = list()
             for m in range(len(training_data)):
@@ -357,7 +352,6 @@ def integral_image(image):
       Args:
         image : an numpy array with shape (m, n)
     """
-    # TODO: Can this be parallelized?
     ii = np.zeros(image.shape)
     s = np.zeros(image.shape)
     for y in range(len(image)):
