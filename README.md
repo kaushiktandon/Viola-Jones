@@ -7,6 +7,7 @@ Serial version modified from https://github.com/aparande/FaceDetection
 
 To run our parallel version
 ```
+pip3 install -r requirements.txt
 cd parallel
 python3 face_detection.py
 ```
