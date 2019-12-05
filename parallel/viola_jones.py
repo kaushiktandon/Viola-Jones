@@ -24,7 +24,12 @@ class ViolaJones:
             weights[i] = weights[i] * (beta ** (1 - accuracy[i]))
         return weights
 
-    def train(self, training, pos_num, neg_num):
+    def log(self, log_file, content):
+        log_file_writer = open(log_file, "a+")
+        log_file_writer.write(content + "\n")
+        log_file_writer.close()
+
+    def train(self, training, pos_num, neg_num, log_file):
         """
         Trains the Viola Jones classifier on a set of images (numpy arrays of shape (m, n))
           Args:
@@ -34,6 +39,7 @@ class ViolaJones:
         """
         weights = np.zeros(len(training))
         training_data = []
+        self.log(log_file, "Computing integral images")
         print("Computing integral images")
 
         start_time = time.time()
@@ -43,49 +49,66 @@ class ViolaJones:
                 weights[x] = 1.0 / (2 * pos_num)
             else:
                 weights[x] = 1.0 / (2 * neg_num)
-        print (str(time.time() - start_time) + " seconds to compute integral images")
+        end_time = time.time()
+        self.log(log_file, (str(end_time - start_time) + " seconds to compute integral images"))
+        print (str(end_time - start_time) + " seconds to compute integral images")
 
         print("Building features")
         start_time = time.time()
         features = self.build_features(training_data[0][0].shape)
-        print (str(time.time() - start_time) + " seconds to build features")
+        end_time = time.time()
+        print (str(end_time - start_time) + " seconds to build features")
+        self.log(log_file, (str(end_time - start_time) + " seconds to build features"))
 
-        start_time = time.time()
         print("Applying features to training examples")
+        start_time = time.time()
         X, y = self.apply_features(features, training_data)
-        print (str(time.time() - start_time) + " seconds to apply features")
+        end_time = time.time()
+        print (str(end_time - start_time) + " seconds to apply features")
+        self.log(log_file, (str(end_time - start_time) + " seconds to apply features"))
 
         print("Selecting best features")
         start_time = time.time()
         indices = SelectPercentile(f_classif, percentile=10).fit(X.T, y).get_support(indices=True)
-        print (str(time.time() - start_time) + " seconds to select best feature")
+        end_time = time.time()
+        print (str(end_time - start_time) + " seconds to select best feature")
+        self.log(log_file, (str(end_time - start_time) + " seconds to select best feature"))
 
         X = X[indices]
         features = features[indices]
         print("Selected %d potential features" % len(X))
+        self.log(log_file, "Selected %d potential features" % len(X))
 
         for t in range(self.T):
+            self.log(log_file, "iteration: " + str(t))
             print("iteration: " + str(t))
             start_time = time.time()
             weights = weights / np.linalg.norm(weights)
 
             start_time = time.time()
             weak_classifiers = self.train_weak(X, y, features, weights)
-            print (str(time.time() - start_time) + " seconds to train weak")
+            end_time = time.time()
+            self.log(log_file, str(end_time - start_time) + " seconds to train weak")
+            print (str(end_time - start_time) + " seconds to train weak")
             
             start_time = time.time()
             clf, error, accuracy = self.select_best(weak_classifiers, weights, training_data)
-            print (str(time.time() - start_time) + " seconds to select best")
+            end_time = time.time()
+            self.log(log_file, str(end_time - start_time) + " seconds to select best")
+            print (str(end_time - start_time) + " seconds to select best")
 
             start_time = time.time()
             beta = error / (1.0 - error)
             weights = self.update_weights(weights, accuracy, beta)
-            print (str(time.time() - start_time) + " seconds to update weights")
+            end_time = time.time()
+            self.log(log_file, str(end_time - start_time) + " seconds to update weights")
+            print (str(end_time - start_time) + " seconds to update weights")
 
             alpha = math.log(1.0/beta)
             self.alphas.append(alpha)
             self.clfs.append(clf)
             print("Chose classifier: %s with accuracy: %f and alpha: %f" % (str(clf), len(accuracy) - sum(accuracy), alpha))
+            self.log(log_file, "Chose classifier: %s with accuracy: %f and alpha: %f" % (str(clf), len(accuracy) - sum(accuracy), alpha))
 
     def threaded_train_weak(self, X, features, weights, y, total_pos, total_neg, thread_id, classifiers, classifiers_lock):
         my_classifiers = list()
