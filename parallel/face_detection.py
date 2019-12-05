@@ -58,7 +58,7 @@ def evaluate(clf, data, log_file):
     print("Average Classification Time: %f" % (classification_time / len(data)))
 
 def main():
-    log_file = "serial_output1.txt"
+    log_file = "parallel_output1.txt"
     log_file_writer = open(log_file, "w+")
     log_file_writer.close()
 
