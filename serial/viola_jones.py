@@ -43,30 +43,44 @@ class ViolaJones:
                 weights[x] = 1.0 / (2 * pos_num)
             else:
                 weights[x] = 1.0 / (2 * neg_num)
-        print (str(time.time() - start_time) + " seconds")
+        print (str(time.time() - start_time) + " seconds to compute integral images")
 
         print("Building features")
         start_time = time.time()
         features = self.build_features(training_data[0][0].shape)
-        print (str(time.time() - start_time) + " seconds")
+        print (str(time.time() - start_time) + " seconds to build features")
 
         start_time = time.time()
         print("Applying features to training examples")
         X, y = self.apply_features(features, training_data)
-        print (str(time.time() - start_time) + " seconds")
+        print (str(time.time() - start_time) + " seconds to apply features")
 
         print("Selecting best features")
+        start_time = time.time()
         indices = SelectPercentile(f_classif, percentile=10).fit(X.T, y).get_support(indices=True)
+        print (str(time.time() - start_time) + " seconds to select best feature")
+
         X = X[indices]
         features = features[indices]
         print("Selected %d potential features" % len(X))
 
         for t in range(self.T):
+            start_time = time.time()
             weights = weights / np.linalg.norm(weights)
+
+            start_time = time.time()
             weak_classifiers = self.train_weak(X, y, features, weights)
+            print (str(time.time() - start_time) + " seconds to train weak")
+            
+            start_time = time.time()
             clf, error, accuracy = self.select_best(weak_classifiers, weights, training_data)
+            print (str(time.time() - start_time) + " seconds to select best")
+
+            start_time = time.time()
             beta = error / (1.0 - error)
             weights = self.update_weights(weights, accuracy, beta)
+            print (str(time.time() - start_time) + " seconds to update weights")
+
             alpha = math.log(1.0/beta)
             self.alphas.append(alpha)
             self.clfs.append(clf)
@@ -230,6 +244,8 @@ class ViolaJones:
                 temp_list.append(self.feature_ii(training_data[m][0], positive_regions, negative_regions))
             X[i] = temp_list
             i += 1
+        print("Verify X matches!")
+        print(X)
         return X, y
 
     def classify(self, image):
