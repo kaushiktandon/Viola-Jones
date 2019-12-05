@@ -20,12 +20,16 @@ class ViolaJones:
         self.clfs = []
 
     def update_weights(self, weights, accuracy, beta):
-        # TODO: Parallelize
         for i in range(len(accuracy)):
             weights[i] = weights[i] * (beta ** (1 - accuracy[i]))
         return weights
 
-    def train(self, training, pos_num, neg_num):
+    def log(self, log_file, content):
+        log_file_writer = open(log_file, "a+")
+        log_file_writer.write(content + "\n")
+        log_file_writer.close()
+
+    def train(self, training, pos_num, neg_num, log_file):
         """
         Trains the Viola Jones classifier on a set of images (numpy arrays of shape (m, n))
           Args:
@@ -35,6 +39,7 @@ class ViolaJones:
         """
         weights = np.zeros(len(training))
         training_data = []
+        self.log(log_file, "Computing integral images")
         print("Computing integral images")
 
         start_time = time.time()
@@ -44,34 +49,96 @@ class ViolaJones:
                 weights[x] = 1.0 / (2 * pos_num)
             else:
                 weights[x] = 1.0 / (2 * neg_num)
-        print (str(time.time() - start_time) + " seconds")
+        end_time = time.time()
+        self.log(log_file, (str(end_time - start_time) + " seconds to compute integral images"))
+        print (str(end_time - start_time) + " seconds to compute integral images")
 
         print("Building features")
         start_time = time.time()
         features = self.build_features(training_data[0][0].shape)
-        print (str(time.time() - start_time) + " seconds")
+        end_time = time.time()
+        print (str(end_time - start_time) + " seconds to build features")
+        self.log(log_file, (str(end_time - start_time) + " seconds to build features"))
 
-        start_time = time.time()
         print("Applying features to training examples")
+        start_time = time.time()
         X, y = self.apply_features(features, training_data)
-        print (str(time.time() - start_time) + " seconds")
+        end_time = time.time()
+        print (str(end_time - start_time) + " seconds to apply features")
+        self.log(log_file, (str(end_time - start_time) + " seconds to apply features"))
 
         print("Selecting best features")
+        start_time = time.time()
         indices = SelectPercentile(f_classif, percentile=10).fit(X.T, y).get_support(indices=True)
+        end_time = time.time()
+        print (str(end_time - start_time) + " seconds to select best feature")
+        self.log(log_file, (str(end_time - start_time) + " seconds to select best feature"))
+
         X = X[indices]
         features = features[indices]
         print("Selected %d potential features" % len(X))
+        self.log(log_file, "Selected %d potential features" % len(X))
 
         for t in range(self.T):
+            self.log(log_file, "iteration: " + str(t))
+            print("iteration: " + str(t))
+            start_time = time.time()
             weights = weights / np.linalg.norm(weights)
+
+            start_time = time.time()
             weak_classifiers = self.train_weak(X, y, features, weights)
+            end_time = time.time()
+            self.log(log_file, str(end_time - start_time) + " seconds to train weak")
+            print (str(end_time - start_time) + " seconds to train weak")
+            
+            start_time = time.time()
             clf, error, accuracy = self.select_best(weak_classifiers, weights, training_data)
+            end_time = time.time()
+            self.log(log_file, str(end_time - start_time) + " seconds to select best")
+            print (str(end_time - start_time) + " seconds to select best")
+
+            start_time = time.time()
             beta = error / (1.0 - error)
             weights = self.update_weights(weights, accuracy, beta)
+            end_time = time.time()
+            self.log(log_file, str(end_time - start_time) + " seconds to update weights")
+            print (str(end_time - start_time) + " seconds to update weights")
+
             alpha = math.log(1.0/beta)
             self.alphas.append(alpha)
             self.clfs.append(clf)
             print("Chose classifier: %s with accuracy: %f and alpha: %f" % (str(clf), len(accuracy) - sum(accuracy), alpha))
+            self.log(log_file, "Chose classifier: %s with accuracy: %f and alpha: %f" % (str(clf), len(accuracy) - sum(accuracy), alpha))
+
+    def threaded_train_weak(self, X, features, weights, y, total_pos, total_neg, thread_id, classifiers, classifiers_lock):
+        my_classifiers = list()
+        for index, feature in enumerate(X):
+            applied_feature = sorted(zip(weights, feature, y), key=lambda x: x[1])
+
+            pos_seen, neg_seen = 0, 0
+            pos_weights, neg_weights = 0, 0
+            min_error, best_feature, best_threshold, best_polarity = float('inf'), None, None, None
+            # Can't really parallelize this because neg_weights/pos_weights in the ith iteration need information from iterations 0 to i - 1
+            for w, f, label in applied_feature:
+                error = min(neg_weights + total_pos - pos_weights, pos_weights + total_neg - neg_weights)
+                if error < min_error:
+                    min_error = error
+                    best_feature = features[thread_id * 100 + index]
+                    best_threshold = f
+                    best_polarity = 1 if pos_seen > neg_seen else -1
+
+                if label == 1:
+                    pos_seen += 1
+                    pos_weights += w
+                else:
+                    neg_seen += 1
+                    neg_weights += w
+            
+            clf = WeakClassifier(best_feature[0], best_feature[1], best_threshold, best_polarity)
+            my_classifiers.append(clf)
+        with classifiers_lock:
+            for index, clf in enumerate(my_classifiers):
+                classifiers[thread_id * 100 + index] = (clf)
 
     def train_weak(self, X, y, features, weights):
         """
@@ -91,38 +158,24 @@ class ViolaJones:
             else:
                 total_neg += w
 
-        classifiers = []
+        classifiers = [None] * len(X)
         total_features = X.shape[0]
 
-        # TODO: Parallelize
         # Each iteration of this loop is supposed to train a weak classifier. len(X) is ~5000, so maybe have 1 thread be responsible for 100 classifiers
-        for index, feature in enumerate(X):
-            if len(classifiers) % 1000 == 0 and len(classifiers) != 0:
-                print("Trained %d classifiers out of %d" % (len(classifiers), total_features))
+        num_threads = int(len(X) / 100) + 1
+        threads = []
+        classifiers_lock = threading.Lock()
+        for thread_id in range(num_threads):
+            end = min((thread_id + 1) * 100, len(X))
+            my_X = X[thread_id * 100 : end]
 
-            applied_feature = sorted(zip(weights, feature, y), key=lambda x: x[1])
+            my_thread = threading.Thread(target = self.threaded_train_weak, args = (my_X, features, weights, y, total_pos, total_neg, thread_id, classifiers, classifiers_lock))
+            threads.append(my_thread)
+            my_thread.start()
 
-            pos_seen, neg_seen = 0, 0
-            pos_weights, neg_weights = 0, 0
-            min_error, best_feature, best_threshold, best_polarity = float('inf'), None, None, None
-            # Can't really parallelize this because neg_weights/pos_weights in the ith iteration need information from iterations 0 to i - 1
-            for w, f, label in applied_feature:
-                error = min(neg_weights + total_pos - pos_weights, pos_weights + total_neg - neg_weights)
-                if error < min_error:
-                    min_error = error
-                    best_feature = features[index]
-                    best_threshold = f
-                    best_polarity = 1 if pos_seen > neg_seen else -1
+        for thread in threads:
+            thread.join()
 
-                if label == 1:
-                    pos_seen += 1
-                    pos_weights += w
-                else:
-                    neg_seen += 1
-                    neg_weights += w
-            
-            clf = WeakClassifier(best_feature[0], best_feature[1], best_threshold, best_polarity)
-            classifiers.append(clf)
         return classifiers
                 
     def build_features(self, image_shape):
@@ -169,6 +222,20 @@ class ViolaJones:
                     i += 1
         return np.array(features)
 
+    def threaded_select_best(self, classifiers, training_data, weights, best_data, thread_id):
+        best_clf, best_error, best_accuracy = None, float('inf'), None        
+        for clf in classifiers:
+            error, accuracy = 0, []
+            for data, w in zip(training_data, weights):
+                correctness = abs(clf.classify(data[0]) - data[1])
+                accuracy.append(correctness)
+                error += w * correctness
+            error = error / len(training_data)
+            if error < best_error:
+                best_clf, best_error, best_accuracy = clf, error, accuracy
+
+        best_data[thread_id] = (best_clf, best_error, best_accuracy)
+
     def select_best(self, classifiers, weights, training_data):
         """
         Selects the best weak classifier for the given weights
@@ -179,19 +246,45 @@ class ViolaJones:
           Returns:
             A tuple containing the best classifier, its error, and an array of its accuracy
         """
-        best_clf, best_error, best_accuracy = None, float('inf'), None
-        # TODO: Parallelize
         # We have ~5000 classifiers. Have threads find the best for their subset and then find the best overall
-        for clf in classifiers:
-            error, accuracy = 0, []
-            for data, w in zip(training_data, weights):
-                correctness = abs(clf.classify(data[0]) - data[1])
-                accuracy.append(correctness)
-                error += w * correctness
-            error = error / len(training_data)
-            if error < best_error:
-                best_clf, best_error, best_accuracy = clf, error, accuracy
-        return best_clf, best_error, best_accuracy
+        num_threads = int(len(classifiers) / 100) + 1
+        threads = []
+        best_data = [None] * num_threads
+        for thread_id in range(num_threads):
+            end = min((thread_id + 1) * 100, len(classifiers))
+            my_classifiers = classifiers[thread_id * 100 : end]
+
+            my_thread = threading.Thread(target=self.threaded_select_best, args= (my_classifiers, training_data, weights, best_data, thread_id))
+            my_thread.start()
+            threads.append(my_thread)
+
+        for thread in threads:
+            thread.join()
+
+        overall_best_clf, overall_best_error, overall_best_accuracy = None, float('inf'), None
+        for data in best_data:
+            if data[1] < overall_best_error:
+                overall_best_clf = data[0]
+                overall_best_error = data[1]
+                overall_best_accuracy = data[2]
+
+        return overall_best_clf, overall_best_error, overall_best_accuracy
+
+    def feature_ii_pos(self, training_data, pos_regions, pos_scores):
+        for m in range(len(training_data)):
+            pos_sum = 0
+            ii = training_data[m][0]
+            for pos in pos_regions:
+                pos_sum += pos.compute_feature(ii)
+            pos_scores[m] = pos_sum
+
+    def feature_ii_neg(self, training_data, neg_regions, neg_scores):
+        for m in range(len(training_data)):
+            neg_sum = 0
+            ii = training_data[m][0]
+            for neg in neg_regions:
+                neg_sum += neg.compute_feature(ii)
+            neg_scores[m] = neg_sum
 
     def feature_ii(self, ii, pos_regions, neg_regions):
         '''
@@ -211,11 +304,11 @@ class ViolaJones:
 
         return pos_sum - neg_sum
 
-    def threaded_apply_features(self, my_features, training_data, X, X_Lock, thread_id):
+    def threaded_apply_features_1(self, my_features, training_data, X, X_Lock, thread_id):
         my_thread_output = list()
         for positive_regions, negative_regions in my_features:
             temp_list = list()
-            # Could parallelize this too
+            # Could parallelize this too - see threaded_apply_features_2
             for m in range(len(training_data)):
                 temp_list.append(self.feature_ii(training_data[m][0], positive_regions, negative_regions))
             my_thread_output.append(temp_list)
@@ -226,7 +319,32 @@ class ViolaJones:
                 X[thread_id * 1000 + a] = temp_list
                 a += 1
 
-        # Pass output back when thread ends, or update X here
+    def threaded_apply_features_2(self, my_features, training_data, X, X_Lock, thread_id):
+        my_thread_output = list()
+        training_data_length = len(training_data)
+        for positive_regions, negative_regions in my_features:
+            temp_list = [None] * training_data_length
+            pos_scores = [None] * training_data_length
+            neg_scores = [None] * training_data_length
+
+            pos_thread = threading.Thread(target=self.feature_ii_pos, args=(training_data, positive_regions, pos_scores))
+            neg_thread = threading.Thread(target=self.feature_ii_neg, args=(training_data, negative_regions, neg_scores))
+            pos_thread.start()
+            neg_thread.start()
+
+            pos_thread.join()
+            neg_thread.join()
+
+            for i in range(training_data_length):
+                temp_list[i] = pos_scores[i] - neg_scores[i]
+            my_thread_output.append(temp_list)
+
+        a = 0
+        with X_Lock:
+            for temp_list in my_thread_output:
+                X[thread_id * 1000 + a] = temp_list
+                a += 1
+
     def apply_features(self, features, training_data):
         """
         Maps features onto the training dataset
@@ -248,12 +366,18 @@ class ViolaJones:
             end = min((thread_id + 1) * 1000, len(features))
             my_features = features[thread_id * 1000 : end]
 
-            my_thread = threading.Thread(target=self.threaded_apply_features, args=(my_features, training_data, X, X_Lock, thread_id))
+            # Change to threaded_apply_features_2 to try 2nd version of parallelization
+            if thread_id == 0:
+                print("Using: threaded_apply_features_1")
+            my_thread = threading.Thread(target=self.threaded_apply_features_1, args=(my_features, training_data, X, X_Lock, thread_id))
             threads.append(my_thread)
             my_thread.start()
 
         for thread in threads:
             thread.join()
+
+        print("Verify X matches!")
+        print(X)
 
         return X, y
 
@@ -366,7 +490,6 @@ def integral_image(image):
       Args:
         image : an numpy array with shape (m, n)
     """
-    # TODO: Can this be parallelized?
     ii = np.zeros(image.shape)
     s = np.zeros(image.shape)
     for y in range(len(image)):

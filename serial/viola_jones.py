@@ -19,12 +19,16 @@ class ViolaJones:
         self.clfs = []
 
     def update_weights(self, weights, accuracy, beta):
-        # TODO: Parallelize
         for i in range(len(accuracy)):
             weights[i] = weights[i] * (beta ** (1 - accuracy[i]))
         return weights
 
-    def train(self, training, pos_num, neg_num):
+    def log(self, log_file, content):
+        log_file_writer = open(log_file, "a+")
+        log_file_writer.write(content + "\n")
+        log_file_writer.close()
+
+    def train(self, training, pos_num, neg_num, log_file):
         """
         Trains the Viola Jones classifier on a set of images (numpy arrays of shape (m, n))
           Args:
@@ -34,6 +38,7 @@ class ViolaJones:
         """
         weights = np.zeros(len(training))
         training_data = []
+        self.log(log_file, "Computing integral images")
         print("Computing integral images")
 
         start_time = time.time()
@@ -43,34 +48,66 @@ class ViolaJones:
                 weights[x] = 1.0 / (2 * pos_num)
             else:
                 weights[x] = 1.0 / (2 * neg_num)
-        print (str(time.time() - start_time) + " seconds")
+        end_time = time.time()
+        self.log(log_file, (str(end_time - start_time) + " seconds to compute integral images"))
+        print (str(end_time - start_time) + " seconds to compute integral images")
 
         print("Building features")
         start_time = time.time()
         features = self.build_features(training_data[0][0].shape)
-        print (str(time.time() - start_time) + " seconds")
+        end_time = time.time()
+        print (str(end_time - start_time) + " seconds to build features")
+        self.log(log_file, (str(end_time - start_time) + " seconds to build features"))
 
-        start_time = time.time()
         print("Applying features to training examples")
+        start_time = time.time()
         X, y = self.apply_features(features, training_data)
-        print (str(time.time() - start_time) + " seconds")
+        end_time = time.time()
+        print (str(end_time - start_time) + " seconds to apply features")
+        self.log(log_file, (str(end_time - start_time) + " seconds to apply features"))
 
         print("Selecting best features")
+        start_time = time.time()
         indices = SelectPercentile(f_classif, percentile=10).fit(X.T, y).get_support(indices=True)
+        end_time = time.time()
+        print (str(end_time - start_time) + " seconds to select best feature")
+        self.log(log_file, (str(end_time - start_time) + " seconds to select best feature"))
+
         X = X[indices]
         features = features[indices]
         print("Selected %d potential features" % len(X))
+        self.log(log_file, "Selected %d potential features" % len(X))
 
         for t in range(self.T):
+            self.log(log_file, "iteration: " + str(t))
+            print("iteration: " + str(t))
+            start_time = time.time()
             weights = weights / np.linalg.norm(weights)
+
+            start_time = time.time()
             weak_classifiers = self.train_weak(X, y, features, weights)
+            end_time = time.time()
+            self.log(log_file, str(end_time - start_time) + " seconds to train weak")
+            print (str(end_time - start_time) + " seconds to train weak")
+            
+            start_time = time.time()
             clf, error, accuracy = self.select_best(weak_classifiers, weights, training_data)
+            end_time = time.time()
+            self.log(log_file, str(end_time - start_time) + " seconds to select best")
+            print (str(end_time - start_time) + " seconds to select best")
+
+            start_time = time.time()
             beta = error / (1.0 - error)
             weights = self.update_weights(weights, accuracy, beta)
+            end_time = time.time()
+            self.log(log_file, str(end_time - start_time) + " seconds to update weights")
+            print (str(end_time - start_time) + " seconds to update weights")
+
             alpha = math.log(1.0/beta)
             self.alphas.append(alpha)
             self.clfs.append(clf)
             print("Chose classifier: %s with accuracy: %f and alpha: %f" % (str(clf), len(accuracy) - sum(accuracy), alpha))
+            self.log(log_file, "Chose classifier: %s with accuracy: %f and alpha: %f" % (str(clf), len(accuracy) - sum(accuracy), alpha))
 
     def train_weak(self, X, y, features, weights):
         """
@@ -93,8 +130,6 @@ class ViolaJones:
         classifiers = []
         total_features = X.shape[0]
 
-        # TODO: Parallelize
-        # Each iteration of this loop is supposed to train a weak classifier. len(X) is ~5000, so maybe have 1 thread be responsible for 100 classifiers
         for index, feature in enumerate(X):
             if len(classifiers) % 1000 == 0 and len(classifiers) != 0:
                 print("Trained %d classifiers out of %d" % (len(classifiers), total_features))
@@ -179,8 +214,6 @@ class ViolaJones:
             A tuple containing the best classifier, its error, and an array of its accuracy
         """
         best_clf, best_error, best_accuracy = None, float('inf'), None
-        # TODO: Parallelize
-        # We have ~5000 classifiers. Have threads find the best for their subset and then find the best overall
         for clf in classifiers:
             error, accuracy = 0, []
             for data, w in zip(training_data, weights):
@@ -223,13 +256,14 @@ class ViolaJones:
         X = np.zeros((len(features), len(training_data)))
         y = np.array(list(map(lambda data: data[1], training_data)))
         i = 0
-        #TODO: Parallelize
         for positive_regions, negative_regions in features:
             temp_list = list()
             for m in range(len(training_data)):
                 temp_list.append(self.feature_ii(training_data[m][0], positive_regions, negative_regions))
             X[i] = temp_list
             i += 1
+        print("Verify X matches!")
+        print(X)
         return X, y
 
     def classify(self, image):
@@ -341,7 +375,6 @@ def integral_image(image):
       Args:
         image : an numpy array with shape (m, n)
     """
-    # TODO: Can this be parallelized?
     ii = np.zeros(image.shape)
     s = np.zeros(image.shape)
     for y in range(len(image)):
