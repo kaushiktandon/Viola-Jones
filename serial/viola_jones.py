@@ -64,6 +64,7 @@ class ViolaJones:
         print("Selected %d potential features" % len(X))
 
         for t in range(self.T):
+            print("iteration: " + str(t))
             start_time = time.time()
             weights = weights / np.linalg.norm(weights)
 

@@ -20,7 +20,6 @@ class ViolaJones:
         self.clfs = []
 
     def update_weights(self, weights, accuracy, beta):
-        # TODO: Parallelize
         for i in range(len(accuracy)):
             weights[i] = weights[i] * (beta ** (1 - accuracy[i]))
         return weights
@@ -66,6 +65,7 @@ class ViolaJones:
         print("Selected %d potential features" % len(X))
 
         for t in range(self.T):
+            print("iteration: " + str(t))
             start_time = time.time()
             weights = weights / np.linalg.norm(weights)
 
@@ -87,6 +87,36 @@ class ViolaJones:
             self.clfs.append(clf)
             print("Chose classifier: %s with accuracy: %f and alpha: %f" % (str(clf), len(accuracy) - sum(accuracy), alpha))
 
+    def threaded_train_weak(self, X, features, weights, y, total_pos, total_neg, thread_id, classifiers, classifiers_lock):
+        my_classifiers = list()
+        for index, feature in enumerate(X):
+            applied_feature = sorted(zip(weights, feature, y), key=lambda x: x[1])
+
+            pos_seen, neg_seen = 0, 0
+            pos_weights, neg_weights = 0, 0
+            min_error, best_feature, best_threshold, best_polarity = float('inf'), None, None, None
+            # Can't really parallelize this because neg_weights/pos_weights in the ith iteration need information from iterations 0 to i - 1
+            for w, f, label in applied_feature:
+                error = min(neg_weights + total_pos - pos_weights, pos_weights + total_neg - neg_weights)
+                if error < min_error:
+                    min_error = error
+                    best_feature = features[thread_id * 100 + index]
+                    best_threshold = f
+                    best_polarity = 1 if pos_seen > neg_seen else -1
+
+                if label == 1:
+                    pos_seen += 1
+                    pos_weights += w
+                else:
+                    neg_seen += 1
+                    neg_weights += w
+            
+            clf = WeakClassifier(best_feature[0], best_feature[1], best_threshold, best_polarity)
+            my_classifiers.append(clf)
+        with classifiers_lock:
+            for index, clf in enumerate(my_classifiers):
+                classifiers[thread_id * 100 + index] = (clf)
+
     def train_weak(self, X, y, features, weights):
         """
         Finds the optimal thresholds for each weak classifier given the current weights
@@ -105,38 +135,24 @@ class ViolaJones:
             else:
                 total_neg += w
 
-        classifiers = []
+        classifiers = [None] * len(X)
         total_features = X.shape[0]
 
-        # TODO: Parallelize
         # Each iteration of this loop is supposed to train a weak classifier. len(X) is ~5000, so maybe have 1 thread be responsible for 100 classifiers
-        for index, feature in enumerate(X):
-            if len(classifiers) % 1000 == 0 and len(classifiers) != 0:
-                print("Trained %d classifiers out of %d" % (len(classifiers), total_features))
+        num_threads = int(len(X) / 100) + 1
+        threads = []
+        classifiers_lock = threading.Lock()
+        for thread_id in range(num_threads):
+            end = min((thread_id + 1) * 100, len(X))
+            my_X = X[thread_id * 100 : end]
 
-            applied_feature = sorted(zip(weights, feature, y), key=lambda x: x[1])
+            my_thread = threading.Thread(target = self.threaded_train_weak, args = (my_X, features, weights, y, total_pos, total_neg, thread_id, classifiers, classifiers_lock))
+            threads.append(my_thread)
+            my_thread.start()
 
-            pos_seen, neg_seen = 0, 0
-            pos_weights, neg_weights = 0, 0
-            min_error, best_feature, best_threshold, best_polarity = float('inf'), None, None, None
-            # Can't really parallelize this because neg_weights/pos_weights in the ith iteration need information from iterations 0 to i - 1
-            for w, f, label in applied_feature:
-                error = min(neg_weights + total_pos - pos_weights, pos_weights + total_neg - neg_weights)
-                if error < min_error:
-                    min_error = error
-                    best_feature = features[index]
-                    best_threshold = f
-                    best_polarity = 1 if pos_seen > neg_seen else -1
+        for thread in threads:
+            thread.join()
 
-                if label == 1:
-                    pos_seen += 1
-                    pos_weights += w
-                else:
-                    neg_seen += 1
-                    neg_weights += w
-            
-            clf = WeakClassifier(best_feature[0], best_feature[1], best_threshold, best_polarity)
-            classifiers.append(clf)
         return classifiers
                 
     def build_features(self, image_shape):

@@ -9,6 +9,7 @@ def train_viola(t):
     clf = ViolaJones(T=t)
     # pass size of data set for both test and training
     clf.train(training, 2429, 4548)
+    print("Training evaluation")
     evaluate(clf, training)
     # Save the model
     clf.save(str(t))
@@ -18,6 +19,7 @@ def test_viola(t):
         test = pickle.load(f)
     
     clf = ViolaJones.load(str(t))
+    print("Testing evaluation")
     evaluate(clf, test)
 
 def evaluate(clf, data):
