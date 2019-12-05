@@ -19,7 +19,6 @@ class ViolaJones:
         self.clfs = []
 
     def update_weights(self, weights, accuracy, beta):
-        # TODO: Parallelize
         for i in range(len(accuracy)):
             weights[i] = weights[i] * (beta ** (1 - accuracy[i]))
         return weights

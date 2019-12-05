@@ -3,8 +3,11 @@ Parallel Implementation of the Viola-Jones algorithm for our EE 451 Course Proje
 
 Data Set: http://cbcl.mit.edu/software-datasets/FaceData2.html - Provides set of training and set of test files. Download from www.ai.mit.edu/courses/6.899/lectures/faces.tar.gz
 
-Serial v2 modified from https://github.com/aparande/FaceDetection
+Serial version modified from https://github.com/aparande/FaceDetection
+
+To run our parallel version
 ```
+cd parallel
 python3 face_detection.py
 ```
 
