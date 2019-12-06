@@ -17,7 +17,7 @@ def detect_faces(cascade, test_image, scaleFactor=1.1):
   return image_copy
 
 def main():
-  cascade_path = "train/trained_classifiers/serial/cascade.xml"
+  cascade_path = "train/classifier/cascade.xml"
   img_path     = "test_images/test_img.jpg"
 
   # read image as grayscale, generated OpenCV classifier

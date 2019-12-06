@@ -3,27 +3,27 @@ numThreads = 1
 --------------------------
 Test 1: >12hrs     (minHitRate = 0.995, maxFalseAlarmRate = 0.3)
 Test 2: 1hr 21min  (minHitRate = 0.975, maxFalseAlarmRate = 0.5 [default])
-Test 3: 2hrs 19min (minHitRate = 0.99,  maxFalseAlarmRate = 0.4)
+Test 3: 2hrs 19min (minHitRate = 0.99,  maxFalseAlarmRate = 0.4) 139min
 
 PARALLEL VERSIONS
 numThreads = 2
 --------------------------
-Test 1: 2hrs 35min (minHitRate = 0.99,  maxFalseAlarmRate = 0.4)
+Test 1: 1hr 14min (?) 2hrs 35min (minHitRate = 0.99,  maxFalseAlarmRate = 0.4) 155min
 
 
 numThreads = 4
 --------------------------
-
+Test 1: 2hrs 7min (minHitRate = 0.99,  maxFalseAlarmRate = 0.4) 127min
 
 
 numThreads = 8
 --------------------------
-
+Test 1: 2hrs 26min (minHitRate = 0.99,  maxFalseAlarmRate = 0.4) 146min
 
 
 numThreads = 16
 --------------------------
-
+Test 1: 2hrs 30min (minHitRate = 0.99,  maxFalseAlarmRate = 0.4) 150min
 
 
 numThreads = 32
