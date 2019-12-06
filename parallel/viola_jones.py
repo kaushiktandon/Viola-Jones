@@ -363,8 +363,13 @@ class ViolaJones:
         threads = []
         X_Lock = threading.Lock()
         for thread_id in range(num_threads):
-            end = min((thread_id + 1) * 1000, len(features))
+            end = min((thread_id + 1) * 1000, len(features) - 1)
             my_features = features[thread_id * 1000 : end]
+
+            # If we want to vary the number of threads instead of the block size
+                # set num_threads outside the for loop
+                # end = min((thread_id + 1) * int(len(features) / num_threads), len(features) - 1)
+                # my_features = features[thread_id * int(len(features) / num_threads) : end]
 
             # Change to threaded_apply_features_2 to try 2nd version of parallelization
             if thread_id == 0:

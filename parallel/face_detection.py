@@ -62,8 +62,8 @@ def main():
     log_file_writer = open(log_file, "w+")
     log_file_writer.close()
 
-    train_viola(50, log_file)
-    test_viola(50, log_file)
+    train_viola(20, log_file)
+    test_viola(20, log_file)
 
 if __name__ == '__main__':
     main()
