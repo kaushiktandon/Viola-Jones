@@ -35,10 +35,11 @@ Assuming you are in the `Viola-Jones/` directory:
 bash ./make_neg_info_file.sh
 bash ./make_pos_info_file.sh
 opencv_createsamples -info face.info -num 2429 -w 24 -h 24 -vec face.vec
+mkdir train/classifier
 opencv_traincascade -data train/classifier -vec face.vec -bg nonface.txt -numPos 1500 -numNeg 4548 -numStages 20 -numThreads 1 -w 24 -h 24 -minHitRate 0.99 -maxFalseAlarmRate 0.4 -featureType HAAR
 ```
 
-Visualize OpenCV results
+To visualize OpenCV results
 ```
 python3 cv_benchmark.py
 ```
