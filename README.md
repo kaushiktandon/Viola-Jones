@@ -19,7 +19,7 @@ To install OpenCV for python3:
 pip3 install opencv-python
 pip3 install opencv-contrib-python
 ```
-    * If OpenCV not detected after above steps:
+* If OpenCV not detected after above steps:
 ```
 sudo apt install libopencv-dev
 ```
@@ -38,7 +38,7 @@ bash ./make_pos_info_file.sh
 ```
 opencv_createsamples -info face.info -num 2429 -w 24 -h 24 -vec face.vec
 ```
-* Train OpenCV Model
+* Train OpenCV Model - adjust `-numThreads` to number of desired threads
 ```
-opencv_traincascade -data train/classifier -vec face.vec -bg nonface.txt -numPos 2000 -numNeg 4548 -numStages 20 -numThreads 1 -w 24 -h 24 -minHitRate 0.9 -maxFalseAlarmRate 0.5 -featureType HAAR
+opencv_traincascade -data train/classifier -vec face.vec -bg nonface.txt -numPos 1500 -numNeg 4548 -numStages 20 -numThreads 1 -w 24 -h 24 -minHitRate 0.99 -maxFalseAlarmRate 0.4 -featureType HAAR
 ```
