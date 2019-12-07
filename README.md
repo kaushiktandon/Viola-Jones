@@ -39,7 +39,7 @@ mkdir train/classifier
 opencv_traincascade -data train/classifier -vec face.vec -bg nonface.txt -numPos 1500 -numNeg 4548 -numStages 20 -numThreads 1 -w 24 -h 24 -minHitRate 0.99 -maxFalseAlarmRate 0.4 -featureType HAAR
 ```
 
-To visualize OpenCV results
+To visualize OpenCV results (from: https://www.datacamp.com/community/tutorials/face-detection-python-opencv)
 ```
 python3 cv_benchmark.py
 ```
