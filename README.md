@@ -1,9 +1,9 @@
 # Viola-Jones
+Hyeon Uk Jeong, Andrew Opem, Kaushik Tandon
+
 Parallel Implementation of the Viola-Jones algorithm for our EE 451 Course Project
 
 Data Set: http://cbcl.mit.edu/software-datasets/FaceData2.html - Provides set of training and set of test files. Download from www.ai.mit.edu/courses/6.899/lectures/faces.tar.gz
-
-Serial version modified from https://github.com/aparande/FaceDetection
 
 To run our parallel version
 ```
@@ -43,3 +43,9 @@ To visualize OpenCV results
 ```
 python3 cv_benchmark.py
 ```
+
+Serial version modified from:
+* https://github.com/aparande/FaceDetection
+* https://github.com/aashudwivedi/object_detect/
+* https://github.com/alexdemartos/ViolaAndJones
+* https://github.com/paveyry/FaceDetection
